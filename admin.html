@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>OPAC Futsal — Admin</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#080b13">
+<link rel="icon" href="assets/logo.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+<link rel="stylesheet" href="assets/admin.css">
+</head>
+<body>
+
+<!-- sign-in gate (shown only when a Firebase API key is configured) -->
+<div class="gate" id="gate" hidden>
+  <form class="gate-card" id="gateForm">
+    <img src="assets/logo.jpg" alt="">
+    <h1>Futsal Admin</h1>
+    <p>Sign in to manage the competition.</p>
+    <div class="field">
+      <label for="gateEmail">Email</label>
+      <input type="email" id="gateEmail" autocomplete="username" required>
+    </div>
+    <div class="field">
+      <label for="gatePass">Password</label>
+      <input type="password" id="gatePass" autocomplete="current-password" required>
+    </div>
+    <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center" id="gateBtn">Sign in</button>
+    <div class="gate-err" id="gateErr" role="alert"></div>
+  </form>
+</div>
+
+<header class="topbar no-print">
+  <div class="topbar-inner">
+    <a class="brand" href="./"><img src="assets/logo.jpg" alt=""><span>Futsal Admin</span></a>
+    <div class="topbar-spacer"></div>
+    <span id="syncStatus" class="chip"><span class="dot"></span><span class="label">Ready</span></span>
+    <button id="undoBtn" class="icon-btn" type="button" title="Undo last change (Ctrl+Z)" aria-label="Undo last change" disabled>↶</button>
+    <button id="themeBtn" class="icon-btn" type="button" title="Switch between dark and light" aria-label="Switch theme">◐</button>
+    <a class="icon-btn" href="./" target="_blank" rel="noopener" title="Open the public site" aria-label="Open the public site">↗</a>
+    <button id="signOutBtn" class="icon-btn" type="button" title="Sign out" aria-label="Sign out" hidden>⎋</button>
+  </div>
+</header>
+
+<main class="container">
+
+  <div id="securityBanner"></div>
+
+  <div class="hero">
+    <img class="hero-logo" src="assets/logo.jpg" alt="">
+    <input class="title-input" id="compTitle" aria-label="Competition title">
+    <input class="sub-input" id="compSub" aria-label="Competition subtitle">
+  </div>
+
+  <div class="tabs no-print" role="tablist" aria-label="Admin sections">
+    <button class="tab-btn" role="tab" id="tab-setup" aria-controls="panel-setup" aria-selected="true" data-tab="setup">Setup</button>
+    <button class="tab-btn" role="tab" id="tab-teams" aria-controls="panel-teams" aria-selected="false" tabindex="-1" data-tab="teams">Teams</button>
+    <button class="tab-btn" role="tab" id="tab-fixtures" aria-controls="panel-fixtures" aria-selected="false" tabindex="-1" data-tab="fixtures">Fixtures</button>
+    <button class="tab-btn" role="tab" id="tab-ladder" aria-controls="panel-ladder" aria-selected="false" tabindex="-1" data-tab="ladder">Ladder</button>
+    <button class="tab-btn" role="tab" id="tab-finals" aria-controls="panel-finals" aria-selected="false" tabindex="-1" data-tab="finals">Finals</button>
+    <button class="tab-btn" role="tab" id="tab-export" aria-controls="panel-export" aria-selected="false" tabindex="-1" data-tab="export">Export</button>
+  </div>
+
+  <section class="tab-panel" id="panel-setup" role="tabpanel" aria-labelledby="tab-setup" tabindex="0"></section>
+  <section class="tab-panel" id="panel-teams" role="tabpanel" aria-labelledby="tab-teams" tabindex="0" hidden></section>
+  <section class="tab-panel" id="panel-fixtures" role="tabpanel" aria-labelledby="tab-fixtures" tabindex="0" hidden></section>
+  <section class="tab-panel" id="panel-ladder" role="tabpanel" aria-labelledby="tab-ladder" tabindex="0" hidden></section>
+  <section class="tab-panel" id="panel-finals" role="tabpanel" aria-labelledby="tab-finals" tabindex="0" hidden></section>
+  <section class="tab-panel" id="panel-export" role="tabpanel" aria-labelledby="tab-export" tabindex="0" hidden></section>
+</main>
+
+<div class="toasts" aria-live="polite"></div>
+
+<script src="assets/config.js"></script>
+<script src="assets/core.js"></script>
+<script src="assets/sortable.js"></script>
+<script src="assets/admin.js"></script>
+</body>
+</html>

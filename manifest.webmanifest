@@ -1,0 +1,13 @@
+{
+  "name": "OPAC Futsal",
+  "short_name": "Futsal",
+  "description": "Fixtures, results, ladder and finals for the OPAC lunchtime futsal competition.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#080b13",
+  "theme_color": "#080b13",
+  "icons": [
+    { "src": "assets/logo.jpg", "sizes": "222x232", "type": "image/jpeg", "purpose": "any" }
+  ]
+}
