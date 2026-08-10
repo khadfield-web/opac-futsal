@@ -10,14 +10,15 @@ Firebase Realtime Database holding the live competition.
 
 ---
 
-## ⚠️ First job: lock down the database
+## Locking down the database
 
-Right now the database accepts writes from anyone. The address is visible in the
-page source of the public site, so anybody who can open the site can also erase
-the whole competition with one request. Nothing here is secret and no student
-data is involved, but a wiped ladder mid-season is a bad afternoon.
+The admin page is gated by a Firebase login (`apiKey` is set in
+`assets/config.js`, which is why `admin.html` asks who you are). That gate is
+only half the job — the database rules are what actually stop a stranger writing
+to it. Both must be in place.
 
-Fixing it takes about five minutes.
+If you have not published the rules in step 2 below, do that now: the API key on
+its own protects nothing.
 
 **1. Create the admin login**
 
@@ -42,20 +43,23 @@ Firebase console → **Realtime Database** → **Rules** → paste and publish:
 
 Everyone can read the competition; only a signed-in account can change it.
 
-**3. Point the site at your login**
+**3. Point the site at your login** *(already done)*
 
-Firebase console → ⚙ **Project settings** → *Your apps* → copy the `apiKey`, then
-put it in `assets/config.js`:
+Firebase console → ⚙ **Project settings** → **General** → *Web API Key*, pasted
+into `assets/config.js`:
 
 ```js
 apiKey: 'AIzaSy…your key…',
 ```
 
 That key is meant to be public — it only lets someone *attempt* a sign-in. The
-rules above do the actual protecting.
+rules above do the actual protecting. With no key set, the admin opens ungated
+and shows a red warning banner instead.
 
-Once the key is set, `admin.html` asks for the email and password before it will
-open, and the red warning banner disappears.
+**Checking it worked** — in the Firebase console, open **Realtime Database →
+Rules → Rules playground** and simulate a **write** to `/futsal`. Unauthenticated
+must come back *denied*; authenticated must come back *allowed*. The public site
+should still load in a private window with no login.
 
 ---
 
