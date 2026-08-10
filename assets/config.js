@@ -19,7 +19,7 @@ window.OPAC = {
      Leave it as '' and the admin page still works, but it will
      show a warning that anyone can edit the competition.
      ---------------------------------------------------------- */
-  apiKey: '',
+  apiKey: 'AIzaSyCN6Swk-Di-xKTsmXiQh5S8T4AWQus0Uz0',
 
   /* Public site branding */
   siteName: 'OPAC Futsal',
