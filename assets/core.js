@@ -37,6 +37,22 @@
   function compact(a) { return (Array.isArray(a) ? a : []).filter(function (x) { return x != null; }); }
 
   /* ---------------------------------------------------------
+     game slots — the school day only has these three windows,
+     so this is a fixed vocabulary rather than free text.
+     --------------------------------------------------------- */
+  var SLOTS = ['Recess', 'Lunch 1', 'Lunch 2'];
+
+  /* Map anything historical ("Wednesday Lunch 2", "lunch two") onto
+     one of the three. Unrecognised values become blank. */
+  function normaliseSlot(v) {
+    var t = String(v == null ? '' : v).toLowerCase();
+    if (!t.trim()) return '';
+    if (t.indexOf('recess') >= 0 || t.indexOf('morning') >= 0) return 'Recess';
+    if (t.indexOf('lunch') >= 0) return /(^|[^0-9])2|two|second|b\b/.test(t) ? 'Lunch 2' : 'Lunch 1';
+    return '';
+  }
+
+  /* ---------------------------------------------------------
      configuration defaults
      --------------------------------------------------------- */
   var DEFAULT_CONFIG = {
@@ -51,11 +67,10 @@
     tiebreakers: ['pts', 'gd', 'gf', 'h2h'],
     finalsFormat: 'top4afl',
     showLadder: true,
-    gamesPerWeek: 2,
     weekLabel: 'Week',
     startDate: '',
     dayName: 'Wednesday',
-    slots: ['Lunch 1', 'Lunch 2'],
+    slots: ['Recess', 'Lunch 1', 'Lunch 2'],
     venue: '',
     showForm: true,
     lockPublicScores: false
@@ -192,8 +207,8 @@
     return {
       id: uid('m'), home: homeId || '', away: awayId || '',
       homeScore: '', awayScore: '',
-      slot: slot || '', date: '', time: '', venue: '',
-      status: '', note: '', penWinner: '', type: ''
+      slot: normaliseSlot(slot), date: '', time: '', venue: '',
+      status: '', note: '', penWinner: '', penHome: '', penAway: '', type: ''
     };
   }
 
@@ -257,7 +272,8 @@
         homeScore: (src.homeScore === 0 || src.homeScore) ? src.homeScore : '',
         awayScore: (src.awayScore === 0 || src.awayScore) ? src.awayScore : '',
         date: src.date || '', time: '', venue: '', status: '',
-        homeOverride: '', awayOverride: '', penWinner: ''
+        homeOverride: '', awayOverride: '', penWinner: '',
+        penHome: '', penAway: ''
       };
       /* v1 recorded the penalty winner by team name */
       if (src.penWinner) slot.penWinner = byName[src.penWinner] || '';
@@ -277,8 +293,14 @@
     st.config = Object.assign({}, DEFAULT_CONFIG, st.config || {});
     st.config.tiebreakers = compact(st.config.tiebreakers).filter(function (k) { return TIEBREAKERS[k]; });
     if (!st.config.tiebreakers.length) st.config.tiebreakers = clone(DEFAULT_CONFIG.tiebreakers);
-    st.config.slots = compact(st.config.slots);
-    if (!st.config.slots.length) st.config.slots = ['Lunch 1', 'Lunch 2'];
+    /* keep only the known slots, always in school-day order */
+    var picked = {};
+    compact(st.config.slots).forEach(function (v) {
+      var n = normaliseSlot(v);
+      if (n) picked[n] = true;
+    });
+    st.config.slots = SLOTS.filter(function (s2) { return picked[s2]; });
+    if (!st.config.slots.length) st.config.slots = SLOTS.slice();
     if (!BRACKETS[st.config.finalsFormat]) st.config.finalsFormat = 'none';
 
     st.teams = compact(st.teams).map(function (t, i) {
@@ -307,9 +329,11 @@
             away: known[m.away] ? m.away : (m.away || ''),
             homeScore: (m.homeScore === 0 || m.homeScore) ? m.homeScore : '',
             awayScore: (m.awayScore === 0 || m.awayScore) ? m.awayScore : '',
-            slot: m.slot || '', date: m.date || '', time: m.time || '',
+            slot: normaliseSlot(m.slot), date: m.date || '', time: m.time || '',
             venue: m.venue || '', status: m.status || '', note: m.note || '',
             penWinner: m.penWinner || '',
+            penHome: (m.penHome === 0 || m.penHome) ? m.penHome : '',
+            penAway: (m.penAway === 0 || m.penAway) ? m.penAway : '',
             type: m.type === 'bye' ? 'bye' : ''
           };
         })
@@ -324,6 +348,8 @@
         awayScore: (f.awayScore === 0 || f.awayScore) ? f.awayScore : '',
         date: f.date || '', time: f.time || '', venue: f.venue || '',
         status: f.status || '', penWinner: f.penWinner || '',
+        penHome: (f.penHome === 0 || f.penHome) ? f.penHome : '',
+        penAway: (f.penAway === 0 || f.penAway) ? f.penAway : '',
         homeOverride: f.homeOverride || '', awayOverride: f.awayOverride || ''
       };
     });
@@ -367,6 +393,25 @@
     if (h > a) return 'home';
     if (a > h) return 'away';
     return 'draw';
+  }
+
+  /* Who won the shoot-out. Prefers the actual penalty score; falls back
+     to the older "just pick a winner" field so existing data still reads. */
+  function penWinnerOf(m, homeId, awayId) {
+    if (!m) return '';
+    var h = num(m.penHome), a = num(m.penAway);
+    if (h !== null && a !== null && h !== a) {
+      return h > a ? (homeId || m.home) : (awayId || m.away);
+    }
+    return m.penWinner || '';
+  }
+
+  /* "4–2 on penalties", or '' when there was no shoot-out. */
+  function penSummary(m) {
+    if (!m) return '';
+    var h = num(m.penHome), a = num(m.penAway);
+    if (h === null || a === null) return '';
+    return h + '\u2013' + a;
   }
 
   /* Every league match in fixture order, with its week attached. */
@@ -430,9 +475,10 @@
       } else if (hs < as) {
         if (A) { A.won++; A.pts += cfg.pointsWin; A.form.push('W'); }
         if (H) { H.lost++; H.pts += cfg.pointsLoss; H.form.push('L'); }
-      } else if (!cfg.drawsAllowed && m.penWinner && (m.penWinner === m.home || m.penWinner === m.away)) {
+      } else if (!cfg.drawsAllowed && penWinnerOf(m) && (penWinnerOf(m) === m.home || penWinnerOf(m) === m.away)) {
         /* competition has no draws — a shoot-out decided it */
-        var W = rows[m.penWinner], L = rows[m.penWinner === m.home ? m.away : m.home];
+        var pw = penWinnerOf(m);
+        var W = rows[pw], L = rows[pw === m.home ? m.away : m.home];
         if (W) { W.won++; W.pts += cfg.pointsWin; W.form.push('W'); }
         if (L) { L.lost++; L.pts += cfg.pointsLoss; L.form.push('L'); }
       } else {
@@ -489,11 +535,12 @@
     if (hs === null || as === null) return { winner: '', loser: '', decided: false };
     if (hs > as) return { winner: resolvedHome, loser: resolvedAway, decided: true };
     if (as > hs) return { winner: resolvedAway, loser: resolvedHome, decided: true };
-    if (slot.penWinner) {
+    var pw = penWinnerOf(slot, resolvedHome, resolvedAway);
+    if (pw) {
       return {
-        winner: slot.penWinner,
-        loser: slot.penWinner === resolvedHome ? resolvedAway : resolvedHome,
-        decided: true, pens: true
+        winner: pw,
+        loser: pw === resolvedHome ? resolvedAway : resolvedHome,
+        decided: true, pens: true, penScore: penSummary(slot)
       };
     }
     return { winner: '', loser: '', decided: false, drawn: true };
@@ -537,7 +584,8 @@
           id: 'final_' + def.id, home: home, away: away,
           homeScore: slot.homeScore, awayScore: slot.awayScore,
           date: slot.date, time: slot.time, venue: slot.venue,
-          status: slot.status, slot: '', type: ''
+          status: slot.status, slot: '', type: '',
+          penHome: slot.penHome, penAway: slot.penAway, penWinner: slot.penWinner
         }
       });
     });
@@ -632,7 +680,8 @@
       }
     }
 
-    var per = Math.max(1, parseInt(cfg.gamesPerWeek, 10) || 2);
+    var slots = cfg.slots && cfg.slots.length ? cfg.slots : SLOTS;
+    var per = slots.length;
     var weeks = [], wn = 1, idx = 0;
     while (idx < flat.length) {
       var chunk = flat.slice(idx, idx + per);
@@ -651,7 +700,7 @@
           wk.matches.push(b);
           return;
         }
-        var m = blankMatch(p[0], p[1], cfg.slots[i % cfg.slots.length] || '');
+        var m = blankMatch(p[0], p[1], slots[i % slots.length] || '');
         m.venue = cfg.venue || '';
         wk.matches.push(m);
       });
@@ -982,6 +1031,8 @@
     migrate: migrate, normalise: normalise,
     teamById: teamById, teamName: teamName, badgeHTML: badgeHTML,
     isPlayed: isPlayed, winnerSide: winnerSide,
+    penWinnerOf: penWinnerOf, penSummary: penSummary,
+    SLOTS: SLOTS, normaliseSlot: normaliseSlot,
     allMatches: allMatches, matchSortKey: matchSortKey,
     standings: standings, standingsByGroup: standingsByGroup, hasAnyResult: hasAnyResult,
     bracketFor: bracketFor, resolveFinals: resolveFinals, champion: champion,

@@ -79,7 +79,8 @@ appears on the public site immediately — no refresh needed at either end.
 
 1. **Teams** → set how many teams and name them.
 2. **Setup** → choose the format, points, tie-breakers and finals.
-3. **Setup** → *Generate draw*. This builds every week and fixture.
+3. **Setup** → tick your game slots, then *Generate draw*. This builds every
+   week and fixture.
 4. **Fixtures** → adjust anything by hand.
 
 *Generate draw* replaces the existing draw and clears all scores. Take a backup
@@ -97,6 +98,12 @@ one. There is also a *Move to week* dropdown behind the **⋯** button.
 **Format** — round robin (everyone plays everyone), groups (pools then finals),
 knockout only, or custom (you build the draw by hand).
 
+**Game slots** — every game sits in one of three fixed windows: **Recess**,
+**Lunch 1**, **Lunch 2**. Tick the ones you use under *Setup → Scheduling* and
+the draw puts one game in each, in that order, so three ticked slots means three
+games a week. Individual games can be moved between slots afterwards from the
+dropdown on each row.
+
 **Times each pair meets** — once, or home-and-away, or more.
 
 **Points** — win, draw, loss and bye are all editable. Turn *Games can end in a
@@ -111,7 +118,13 @@ and 2nd, which is what this competition used to do), top 4 straight knockout wit
 a 3rd place play-off, top 8, or crossover semis when you are running two groups.
 
 The bracket seeds itself from the ladder and advances each winner automatically.
-If a level final needs a shoot-out you pick the winner and the bracket carries on.
+
+**Penalties** — if a final finishes level, a shoot-out row appears under the
+scoreline. Enter the actual penalty score (4–2, say) and the winner is worked out
+from it, carried into the next round, and shown publicly as *"Portugal win 4–2 on
+penalties"*. The scoreline itself still reads 2–2, as it should. Turning off
+*Games can end in a draw* gives league games the same treatment.
+
 Anything can be overridden by hand under **⋯** if real life gets in the way.
 
 ---
@@ -164,7 +177,7 @@ One JSON document under `futsal`:
   "weeks":  [ { "id": "w_…", "label": "Week 1", "date": "2026-02-11",
                 "matches": [ { "id": "m_…", "home": "t_…", "away": "t_…",
                                "homeScore": 3, "awayScore": 1, "slot": "Lunch 1" } ] } ],
-  "finals": { "sf1": { "homeScore": "", "awayScore": "", "penWinner": "" } },
+  "finals": { "sf1": { "homeScore": 2, "awayScore": 2, "penHome": 4, "penAway": 2 } },
   "updatedAt": "2026-02-11T01:23:45.000Z"
 }
 ```
@@ -178,7 +191,9 @@ score and everything downstream corrects itself.
 ### Upgrading from the old version
 
 The old format (teams as a list of names, finals keyed `semi1`/`semi2`/`prelim`/
-`grand`) is migrated automatically when the admin console loads it. Nothing is
+`grand`, free-text slot labels like *"Wednesday Lunch 2"*) is migrated
+automatically when the admin console loads it — slot labels are matched onto
+Recess / Lunch 1 / Lunch 2. Nothing is
 written back until you make a change, so opening the page is safe. The old finals
 map onto the top-4 AFL bracket exactly.
 

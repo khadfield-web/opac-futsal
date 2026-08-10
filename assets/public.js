@@ -15,6 +15,14 @@
   var firstPaint = true;
 
   var theme = F.initTheme();
+  var revealIndex = 0;
+
+  /* Cards fade in on the first paint only — replaying it on every live
+     score update would be distracting. */
+  function revealAttr() {
+    if (!firstPaint) return '';
+    return ' data-reveal style="--i:' + (revealIndex++) + '"';
+  }
 
   /* ---------------------------------------------------------
      shared match card
@@ -27,22 +35,68 @@
     return '';
   }
 
+  function slotChip(slot) {
+    if (!slot) return '';
+    var key = slot.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return '<span class="slot-chip" data-slot="' + key + '">' + esc(slot) + '</span>';
+  }
+
   function metaLine(st, m, week) {
     var bits = [];
     var d = m.date || (week && week.date) || '';
-    if (d) bits.push(esc(F.fmtDate(d)));
-    if (m.time) bits.push(esc(F.fmtTime(m.time)));
-    if (m.slot) bits.push(esc(m.slot));
-    if (m.venue) bits.push(esc(m.venue));
-    return bits.join(' &middot; ');
+    if (d) bits.push('<span>' + esc(F.fmtDate(d)) + '</span>');
+    if (m.time) bits.push('<span>' + esc(F.fmtTime(m.time)) + '</span>');
+    if (m.venue) bits.push('<span>' + esc(m.venue) + '</span>');
+    return slotChip(m.slot) + bits.join('<span class="sep-dot">&middot;</span>');
+  }
+
+  /* the scoreline / kick-off block in the middle of a card */
+  function scoreHTML(m, played, homeWin, awayWin) {
+    if (played) {
+      return '<span class="n' + (homeWin ? ' win' : '') + '">' + esc(m.homeScore) + '</span>' +
+             '<span class="sep">&ndash;</span>' +
+             '<span class="n' + (awayWin ? ' win' : '') + '">' + esc(m.awayScore) + '</span>';
+    }
+    if (m.time) return '<span class="kick">' + esc(F.fmtTime(m.time)) + '</span>';
+    return '<span class="vs">vs</span>';
+  }
+
+  function bodyHTML(st, m, played, homeWin, awayWin) {
+    /* The score boxes follow the scoreline itself — a 2–2 draw settled on
+       penalties should still read 2–2, with the shoot-out shown below.
+       Only the team names carry the overall winner. */
+    var w = F.winnerSide(m);
+    return '<div class="match-body">' +
+      '<div class="side home' + (played ? (homeWin ? ' win' : awayWin ? ' lose' : '') : '') + '">' + F.badgeHTML(st, m.home) + '</div>' +
+      '<div class="score">' + scoreHTML(m, played, w === 'home', w === 'away') + '</div>' +
+      '<div class="side away' + (played ? (awayWin ? ' win' : homeWin ? ' lose' : '') : '') + '">' + F.badgeHTML(st, m.away) + '</div>' +
+      '</div>';
+  }
+
+  /* "Portugal win 4–2 on penalties" and friends */
+  function footText(st, m, opts) {
+    var pens = opts.penWinner || F.penWinnerOf(m, m.home, m.away);
+    var score = F.penSummary(m) || opts.penScore || '';
+    if (pens) {
+      return score
+        ? '⚽ ' + F.teamName(st, pens) + ' win ' + score + ' on penalties'
+        : '⚽ ' + F.teamName(st, pens) + ' won the shoot-out';
+    }
+    if (opts.needsPens) return 'Level after full time — shoot-out to come';
+    return m.note || '';
+  }
+
+  function cardState(m, played) {
+    if (m.status === 'live') return 'live';
+    if (m.status === 'postponed') return 'postponed';
+    return played ? 'final' : 'scheduled';
   }
 
   function matchCard(st, m, opts) {
     opts = opts || {};
-    var week = opts.week;
 
     if (m.type === 'bye') {
-      return '<div class="match" data-state="bye">' +
+      return '<div class="match bye"' + revealAttr() + '>' +
         '<div class="match-body" style="grid-template-columns:1fr auto">' +
         '<div class="side">' + F.badgeHTML(st, m.home) + '</div>' +
         '<div class="score"><span class="vs">Bye</span></div>' +
@@ -50,51 +104,57 @@
     }
 
     var played = F.isPlayed(m);
+    var pens = opts.penWinner || F.penWinnerOf(m, m.home, m.away);
     var win = F.winnerSide(m);
-    var pens = opts.penWinner || m.penWinner || '';
     var homeWin = win === 'home' || (pens && pens === m.home);
     var awayWin = win === 'away' || (pens && pens === m.away);
 
-    var scoreHTML;
-    if (played) {
-      scoreHTML =
-        '<span class="n' + (homeWin ? ' win' : '') + '">' + esc(m.homeScore) + '</span>' +
-        '<span class="sep">&ndash;</span>' +
-        '<span class="n' + (awayWin ? ' win' : '') + '">' + esc(m.awayScore) + '</span>';
-    } else if (m.time) {
-      scoreHTML = '<span class="kick">' + esc(F.fmtTime(m.time)) + '</span>';
-    } else {
-      scoreHTML = '<span class="vs">vs</span>';
-    }
-
-    var meta = metaLine(st, m, week);
+    var meta = metaLine(st, m, opts.week);
     var badge = statusBadge(m, played);
     var metaRow = (meta || badge || opts.title)
       ? '<div class="match-meta">' +
-        (opts.title ? '<strong style="color:var(--text-dim)">' + esc(opts.title) + '</strong>' : '') +
-        (meta ? '<span>' + meta + '</span>' : '') +
-        '<span class="spacer"></span>' + badge + '</div>'
+        (opts.title ? '<strong class="meta-title">' + esc(opts.title) + '</strong>' : '') +
+        meta + '<span class="spacer"></span>' + badge + '</div>'
       : '';
 
-    var foot = '';
-    if (pens) {
-      foot = '⚽ ' + F.teamName(st, pens) + ' won on penalties';
-    } else if (played && win === 'draw' && opts.needsPens) {
-      foot = 'Drawn — penalties to come';
-    } else if (m.note) {
-      foot = m.note;
-    }
+    var foot = footText(st, m, opts);
 
-    return '<div class="match" data-state="' + (m.status === 'live' ? 'live' : m.status === 'postponed' ? 'postponed' : played ? 'final' : 'scheduled') + '"' +
-      (opts.tier ? ' data-tier="' + esc(opts.tier) + '"' : '') + '>' +
-      metaRow +
-      '<div class="match-body">' +
-        '<div class="side home' + (played ? (homeWin ? ' win' : awayWin ? ' lose' : '') : '') + '">' + F.badgeHTML(st, m.home) + '</div>' +
-        '<div class="score">' + scoreHTML + '</div>' +
-        '<div class="side away' + (played ? (awayWin ? ' win' : homeWin ? ' lose' : '') : '') + '">' + F.badgeHTML(st, m.away) + '</div>' +
-      '</div>' +
+    return '<div class="match" data-state="' + cardState(m, played) + '"' +
+      (opts.tier ? ' data-tier="' + esc(opts.tier) + '"' : '') + revealAttr() + '>' +
+      metaRow + bodyHTML(st, m, played, homeWin, awayWin) +
       (foot ? '<div class="match-foot">' + esc(foot) + '</div>' : '') +
       '</div>';
+  }
+
+  /* A finals tie: title strip and scoreline as one object, rather than
+     a banner sitting on top of a separate card. */
+  function tieCard(st, f) {
+    var m = f.match;
+    var played = F.isPlayed(m);
+    var pens = f.result.pens ? f.result.winner : F.penWinnerOf(m, f.home, f.away);
+    var win = F.winnerSide(m);
+    var homeWin = win === 'home' || (pens && pens === f.home);
+    var awayWin = win === 'away' || (pens && pens === f.away);
+
+    var hs = F.num(m.homeScore), as = F.num(m.awayScore);
+    var needsPens = hs !== null && as !== null && hs === as && !pens;
+
+    var when = [];
+    if (m.date) when.push(esc(F.fmtDate(m.date)));
+    if (m.time) when.push(esc(F.fmtTime(m.time)));
+    if (m.venue) when.push(esc(m.venue));
+
+    var foot = footText(st, m, { penWinner: pens, penScore: f.result.penScore, needsPens: needsPens });
+
+    return '<article class="tie" data-tier="' + esc(f.def.tier) + '" data-state="' + cardState(m, played) + '"' + revealAttr() + '>' +
+      '<header class="tie-head">' +
+        '<h3>' + esc(f.def.title) + '</h3>' +
+        (f.def.sub ? '<p>' + esc(f.def.sub) + '</p>' : '') +
+        (when.length ? '<span class="tie-when">' + when.join(' &middot; ') + '</span>' : '') +
+      '</header>' +
+      bodyHTML(st, m, played, homeWin, awayWin) +
+      (foot ? '<div class="match-foot">' + esc(foot) + '</div>' : '') +
+      '</article>';
   }
 
   function matchesFilter(m) {
@@ -242,8 +302,9 @@
           '</span></td>';
       }
 
+      var medal = i < 3 ? ' medal m' + (i + 1) : '';
       return '<tr class="' + cls.join(' ') + '">' +
-        '<td class="pos">' + (i + 1) + '</td>' +
+        '<td class="pos"><span class="pos-badge' + medal + '">' + (i + 1) + '</span></td>' +
         '<td class="team left">' + F.badgeHTML(state, r.id) + '</td>' +
         '<td>' + r.played + '</td><td>' + r.won + '</td><td>' + r.drawn + '</td><td>' + r.lost + '</td>' +
         '<td>' + r.gf + '</td><td>' + r.ga + '</td>' +
@@ -301,29 +362,13 @@
     }
 
     var finals = F.resolveFinals(state);
-    var html = finals.map(function (f) {
-      var needsPens = false;
-      var hs = F.num(f.slot.homeScore), as = F.num(f.slot.awayScore);
-      if (hs !== null && as !== null && hs === as && !f.slot.penWinner) needsPens = true;
-
-      return '<div class="final-block">' +
-        '<div class="final-banner" data-tier="' + esc(f.def.tier) + '">' +
-          '<h2>' + esc(f.def.title) + '</h2>' +
-          (f.def.sub ? '<p>' + esc(f.def.sub) + '</p>' : '') +
-        '</div>' +
-        matchCard(state, f.match, {
-          tier: f.def.tier,
-          penWinner: f.result.pens ? f.result.winner : '',
-          needsPens: needsPens
-        }) +
-        '</div>';
-    }).join('');
+    var html = '<div class="tie-list">' + finals.map(function (f) { return tieCard(state, f); }).join('') + '</div>';
 
     var champ = F.champion(state);
     if (champ) {
       html += '<div class="champion"><span class="crown">🏆</span>' +
         '<h2>' + F.badgeHTML(state, champ) + '</h2>' +
-        '<p class="sub">Champions</p></div>';
+        '<p class="champion-sub">Champions</p></div>';
       if (champ !== lastChampion) F.confetti();
       lastChampion = champ;
     } else {
@@ -425,6 +470,7 @@
   }
 
   function render() {
+    revealIndex = 0;
     document.title = (state.title || 'OPAC Futsal') + ' — Fixtures & Results';
     $('#compTitle').textContent = state.title || 'OPAC Futsal';
     $('#compSub').textContent = state.subtitle || '';

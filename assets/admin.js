@@ -124,6 +124,7 @@
       '<div class="stat-row">' +
         stat(state.teams.length, 'Teams') +
         stat(state.weeks.length, 'Weeks') +
+        stat(state.config.slots.length, 'Games / week') +
         stat(totalGames.played + ' / ' + totalGames.total, 'Games played') +
         stat(br.qualifiers || '—', 'Finals spots') +
       '</div>' +
@@ -145,7 +146,7 @@
             '<select id="cfgRounds" data-cfg="rounds">' +
               [1, 2, 3, 4].map(function (n) {
                 return '<option value="' + n + '"' + (+c.rounds === n ? ' selected' : '') + '>' +
-                  (n === 1 ? 'Once (single round)' : n === 2 ? 'Twice (home & away)' : n + ' times') + '</option>';
+                  (n === 1 ? 'Once' : n === 2 ? 'Twice (home & away)' : n + ' times') + '</option>';
               }).join('') +
             '</select></div>' +
           '<div class="field"><label for="cfgGroups">Groups</label>' +
@@ -206,14 +207,20 @@
       '<div class="settings-card">' +
         '<h3>Scheduling</h3>' +
         '<p class="cap">Used when generating a draw. Individual games can still be edited afterwards.</p>' +
-        '<div class="row-2">' +
-          '<div class="field"><label for="cfgStart">First week starts</label>' +
-            '<input type="date" id="cfgStart" data-cfg="startDate" value="' + esc(c.startDate) + '"></div>' +
-          '<div class="field"><label for="cfgPer">Games per week</label>' +
-            '<input type="number" min="1" max="12" id="cfgPer" data-cfg="gamesPerWeek" value="' + esc(c.gamesPerWeek) + '"></div>' +
+        '<div class="field"><label for="cfgStart">First week starts</label>' +
+          '<input type="date" id="cfgStart" data-cfg="startDate" value="' + esc(c.startDate) + '"></div>' +
+        '<div class="field" style="margin-top:var(--s3)"><span class="lbl">Game slots</span>' +
+          '<div class="slot-toggles">' +
+            F.SLOTS.map(function (sl) {
+              var on = c.slots.indexOf(sl) >= 0;
+              return '<label class="slot-toggle" data-slot-name="' + esc(sl) + '">' +
+                '<input type="checkbox" data-slot="' + esc(sl) + '"' + (on ? ' checked' : '') + '>' +
+                '<span>' + esc(sl) + '</span></label>';
+            }).join('') +
+          '</div>' +
+          '<p class="hint">One game per ticked slot, so <strong>' + c.slots.length +
+            ' game' + (c.slots.length === 1 ? '' : 's') + ' a week</strong>.</p>' +
         '</div>' +
-        '<div class="field"><label for="cfgSlots">Time slots (one per game, comma separated)</label>' +
-          '<input type="text" id="cfgSlots" data-cfg="slots" value="' + esc(c.slots.join(', ')) + '" placeholder="Lunch 1, Lunch 2"></div>' +
         '<div class="row-2">' +
           '<div class="field"><label for="cfgWeekLabel">Week label</label>' +
             '<input type="text" id="cfgWeekLabel" data-cfg="weekLabel" value="' + esc(c.weekLabel) + '" placeholder="Week"></div>' +
@@ -324,6 +331,36 @@
   /* =========================================================
      FIXTURES panel
      ========================================================= */
+  function slotSelect(value) {
+    return '<select class="slot-sel" data-field="slot" aria-label="Game slot">' +
+      '<option value="">No slot</option>' +
+      F.SLOTS.map(function (sl) {
+        return '<option value="' + esc(sl) + '"' + (value === sl ? ' selected' : '') + '>' + esc(sl) + '</option>';
+      }).join('') + '</select>';
+  }
+
+  /* Shoot-out entry. `attr` is the data-attribute the change handler
+     listens on ('field' for league games, 'ffield' for finals). */
+  function penBlock(m, homeId, awayId, attr) {
+    var winner = F.penWinnerOf(m, homeId, awayId);
+    var score = F.penSummary(m);
+    var ph = F.num(m.penHome), pa = F.num(m.penAway);
+    var msg;
+    if (winner && score) msg = F.teamName(state, winner) + ' win ' + score + ' on penalties';
+    else if (winner) msg = F.teamName(state, winner) + ' won the shoot-out';
+    else if (ph !== null && pa !== null) msg = 'A shoot-out cannot finish level — change one score';
+    else msg = 'Enter the shoot-out score';
+    return '<div class="pen-row">' +
+      '<span class="lbl">⚽ Penalties</span>' +
+      '<div class="fix-score">' +
+        '<input type="number" min="0" inputmode="numeric" data-' + attr + '="penHome" value="' + esc(m.penHome) + '" placeholder="–" aria-label="Home penalties" class="' + (winner && winner === homeId ? 'win' : '') + '">' +
+        '<span class="dash">–</span>' +
+        '<input type="number" min="0" inputmode="numeric" data-' + attr + '="penAway" value="' + esc(m.penAway) + '" placeholder="–" aria-label="Away penalties" class="' + (winner && winner === awayId ? 'win' : '') + '">' +
+      '</div>' +
+      '<span class="pen-msg' + (winner ? ' ok' : '') + '">' + esc(msg) + '</span>' +
+      '</div>';
+  }
+
   function fixtureRow(m, wi) {
     var isBye = m.type === 'bye';
     var win = F.winnerSide(m);
@@ -337,6 +374,7 @@
           '<select class="home" data-field="home" aria-label="Team on a bye">' + teamOptions(m.home) + '</select>' +
           '<span class="lbl">Bye</span>' +
         '</div>' +
+        '<span></span>' +
         '<div class="fix-tools">' +
           '<button type="button" data-act="up" aria-label="Move up">▲</button>' +
           '<button type="button" data-act="down" aria-label="Move down">▼</button>' +
@@ -349,7 +387,6 @@
 
     var details = open ? (
       '<div class="fix-details">' +
-        field('Slot', '<input type="text" data-field="slot" value="' + esc(m.slot) + '" placeholder="Lunch 1">') +
         field('Time', '<input type="time" data-field="time" value="' + esc(m.time) + '">') +
         field('Date (overrides the week)', '<input type="date" data-field="date" value="' + esc(m.date) + '">') +
         field('Venue / court', '<input type="text" data-field="venue" value="' + esc(m.venue) + '" placeholder="Gym">') +
@@ -366,14 +403,7 @@
       '</div>'
     ) : '';
 
-    var pens = showPens ? (
-      '<div class="pen-row">' +
-        '<span class="lbl">Scores level — shoot-out winner</span>' +
-        '<button class="pen-btn" type="button" data-pen="' + esc(m.home) + '" aria-pressed="' + (m.penWinner === m.home ? 'true' : 'false') + '">' + esc(F.teamName(state, m.home)) + '</button>' +
-        '<button class="pen-btn" type="button" data-pen="' + esc(m.away) + '" aria-pressed="' + (m.penWinner === m.away ? 'true' : 'false') + '">' + esc(F.teamName(state, m.away)) + '</button>' +
-        (m.penWinner ? '<button class="btn btn-ghost btn-sm" type="button" data-pen="">Clear</button>' : '') +
-      '</div>'
-    ) : '';
+    var pens = showPens ? penBlock(m, m.home, m.away, 'field') : '';
 
     return '<div class="fix-row" data-mid="' + esc(m.id) + '" data-done="' + (done ? 1 : 0) + '">' +
       '<button class="drag-handle" type="button" aria-label="Drag to reorder" title="Drag to reorder">⠿</button>' +
@@ -386,6 +416,7 @@
         '</div>' +
         '<select class="away" data-field="away" aria-label="Away team">' + teamOptions(m.away) + '</select>' +
       '</div>' +
+      slotSelect(m.slot) +
       '<div class="fix-tools">' +
         '<button type="button" data-act="up" aria-label="Move up">▲</button>' +
         '<button type="button" data-act="down" aria-label="Move down">▼</button>' +
@@ -542,12 +573,7 @@
             '<div class="slot-team away">' + F.badgeHTML(state, f.away) + '</div>' +
           '</div>' +
 
-          (level ? '<div class="pen-row">' +
-            '<span class="lbl">Drawn — who won the shoot-out?</span>' +
-            '<button class="pen-btn" type="button" data-fpen="' + esc(f.home) + '" aria-pressed="' + (m.penWinner === f.home ? 'true' : 'false') + '">' + esc(F.teamName(state, f.home)) + '</button>' +
-            '<button class="pen-btn" type="button" data-fpen="' + esc(f.away) + '" aria-pressed="' + (m.penWinner === f.away ? 'true' : 'false') + '">' + esc(F.teamName(state, f.away)) + '</button>' +
-            (m.penWinner ? '<button class="btn btn-ghost btn-sm" type="button" data-fpen="">Clear</button>' : '') +
-          '</div>' : '') +
+          (level ? penBlock(m, f.home, f.away, 'ffield') : '') +
 
           '<div class="fix-details" style="border-top-color:var(--border)">' +
             field('Date', '<input type="date" data-ffield="date" value="' + esc(m.date) + '">') +
@@ -612,7 +638,7 @@
   }
 
   function fixtureRows() {
-    var out = [['Week', 'Date', 'Slot', 'Venue', 'Home', 'Home score', 'Away score', 'Away', 'Status', 'Note']];
+    var out = [['Week', 'Date', 'Slot', 'Venue', 'Home', 'Home score', 'Away score', 'Away', 'Penalties', 'Status', 'Note']];
     F.allMatches(state).forEach(function (e) {
       var m = e.match;
       out.push([
@@ -621,6 +647,7 @@
         m.homeScore === '' ? '' : m.homeScore,
         m.awayScore === '' ? '' : m.awayScore,
         m.type === 'bye' ? '' : F.teamName(state, m.away),
+        F.penSummary(m),
         m.status || (F.isPlayed(m) ? 'final' : 'scheduled'),
         m.note || ''
       ]);
@@ -629,12 +656,13 @@
   }
 
   function finalsRows() {
-    var out = [['Match', 'Date', 'Home', 'Home score', 'Away score', 'Away', 'Winner']];
+    var out = [['Match', 'Date', 'Home', 'Home score', 'Away score', 'Away', 'Penalties', 'Winner']];
     F.resolveFinals(state).forEach(function (f) {
       out.push([
         f.def.title, f.slot.date || '',
         F.teamName(state, f.home), f.slot.homeScore === '' ? '' : f.slot.homeScore,
         f.slot.awayScore === '' ? '' : f.slot.awayScore, F.teamName(state, f.away),
+        F.penSummary(f.slot),
         f.result.decided ? F.teamName(state, f.result.winner) : ''
       ]);
     });
@@ -675,12 +703,12 @@
     XLSX.utils.book_append_sheet(wb, s1, 'Ladder');
 
     var s2 = XLSX.utils.aoa_to_sheet(fixtureRows());
-    s2['!cols'] = [{ wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 20 }, { wch: 11 }, { wch: 11 }, { wch: 20 }, { wch: 11 }, { wch: 26 }];
+    s2['!cols'] = [{ wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 11 }, { wch: 11 }, { wch: 20 }, { wch: 11 }, { wch: 11 }, { wch: 26 }];
     XLSX.utils.book_append_sheet(wb, s2, 'Fixtures & results');
 
     if (F.bracketFor(state).rounds.length) {
       var s3 = XLSX.utils.aoa_to_sheet(finalsRows());
-      s3['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 20 }, { wch: 11 }, { wch: 11 }, { wch: 20 }, { wch: 20 }];
+      s3['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 20 }, { wch: 11 }, { wch: 11 }, { wch: 20 }, { wch: 11 }, { wch: 20 }];
       XLSX.utils.book_append_sheet(wb, s3, 'Finals');
     }
     XLSX.writeFile(wb, safeName() + '.xlsx');
@@ -776,6 +804,18 @@
         return;
       }
 
+      if (t.dataset.slot) {
+        commit(function () {
+          var want = {};
+          state.config.slots.forEach(function (x) { want[x] = true; });
+          want[t.dataset.slot] = t.checked;
+          var next = F.SLOTS.filter(function (x) { return want[x]; });
+          if (!next.length) next = [t.dataset.slot];   /* never leave zero slots */
+          state.config.slots = next;
+        }, { rerender: true });
+        return;
+      }
+
       if (t.dataset.tbOn) {
         var k = t.dataset.tbOn;
         commit(function () {
@@ -790,10 +830,7 @@
       var key = t.dataset.cfg;
       if (!key) return;
       commit(function () {
-        if (key === 'slots') {
-          state.config.slots = t.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
-          if (!state.config.slots.length) state.config.slots = ['Lunch 1'];
-        } else if (['rounds', 'groupCount', 'gamesPerWeek', 'pointsWin', 'pointsDraw', 'pointsLoss', 'pointsBye'].indexOf(key) >= 0) {
+        if (['rounds', 'groupCount', 'pointsWin', 'pointsDraw', 'pointsLoss', 'pointsBye'].indexOf(key) >= 0) {
           state.config[key] = parseInt(t.value, 10) || 0;
         } else {
           state.config[key] = t.value;
@@ -909,10 +946,12 @@
         if (!confirm('Clear every score in the competition? The draw itself stays.')) return;
         commit(function () {
           F.allMatches(state).forEach(function (en) {
-            en.match.homeScore = ''; en.match.awayScore = ''; en.match.penWinner = '';
+            en.match.homeScore = ''; en.match.awayScore = '';
+            en.match.penWinner = ''; en.match.penHome = ''; en.match.penAway = '';
           });
           Object.keys(state.finals).forEach(function (k) {
-            state.finals[k].homeScore = ''; state.finals[k].awayScore = ''; state.finals[k].penWinner = '';
+            state.finals[k].homeScore = ''; state.finals[k].awayScore = '';
+            state.finals[k].penWinner = ''; state.finals[k].penHome = ''; state.finals[k].penAway = '';
           });
         }, { rerender: true });
         F.toast('Scores cleared');
@@ -951,12 +990,6 @@
       if (!row) return;
       var loc = findMatch(row.dataset.mid);
       if (!loc) return;
-
-      var pen = e.target.dataset.pen;
-      if (pen !== undefined) {
-        commit(function () { loc.match.penWinner = pen; }, { rerender: true });
-        return;
-      }
 
       var act = e.target.dataset.act;
       if (act === 'expand') {
@@ -1027,11 +1060,18 @@
         return;
       }
 
-      var structural = (f === 'homeScore' || f === 'awayScore' || f === 'home' || f === 'away');
+      var numeric = ['homeScore', 'awayScore', 'penHome', 'penAway'];
+      var structural = numeric.indexOf(f) >= 0 || f === 'home' || f === 'away';
       commit(function () {
-        if (f === 'homeScore' || f === 'awayScore') {
+        if (numeric.indexOf(f) >= 0) {
           loc.match[f] = t.value === '' ? '' : Math.max(0, parseInt(t.value, 10) || 0);
-          if (F.num(loc.match.homeScore) !== F.num(loc.match.awayScore)) loc.match.penWinner = '';
+          /* a shoot-out only exists while the game is level */
+          if ((f === 'homeScore' || f === 'awayScore') &&
+              F.num(loc.match.homeScore) !== F.num(loc.match.awayScore)) {
+            loc.match.penHome = ''; loc.match.penAway = ''; loc.match.penWinner = '';
+          }
+        } else if (f === 'slot') {
+          loc.match.slot = F.normaliseSlot(t.value);
         } else {
           loc.match[f] = t.value;
         }
@@ -1060,29 +1100,27 @@
       if (!state.finals[id]) {
         state.finals[id] = {
           homeScore: '', awayScore: '', date: '', time: '', venue: '',
-          status: '', penWinner: '', homeOverride: '', awayOverride: ''
+          status: '', penWinner: '', penHome: '', penAway: '',
+          homeOverride: '', awayOverride: ''
         };
       }
       return state.finals[id];
     }
-
-    panel.addEventListener('click', function (e) {
-      var pen = e.target.dataset.fpen;
-      if (pen === undefined) return;
-      var id = e.target.closest('[data-fid]').dataset.fid;
-      commit(function () { slotFor(id).penWinner = pen; }, { rerender: true });
-    });
 
     panel.addEventListener('change', function (e) {
       var f = e.target.dataset.ffield;
       if (!f) return;
       var id = e.target.closest('[data-fid]').dataset.fid;
       var v = e.target.value;
+      var numeric = ['homeScore', 'awayScore', 'penHome', 'penAway'];
       commit(function () {
         var slot = slotFor(id);
-        if (f === 'homeScore' || f === 'awayScore') {
+        if (numeric.indexOf(f) >= 0) {
           slot[f] = v === '' ? '' : Math.max(0, parseInt(v, 10) || 0);
-          if (F.num(slot.homeScore) !== F.num(slot.awayScore)) slot.penWinner = '';
+          if ((f === 'homeScore' || f === 'awayScore') &&
+              F.num(slot.homeScore) !== F.num(slot.awayScore)) {
+            slot.penHome = ''; slot.penAway = ''; slot.penWinner = '';
+          }
         } else {
           slot[f] = v;
         }
