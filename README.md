@@ -203,6 +203,24 @@ map onto the top-4 AFL bracket exactly.
 
 ---
 
+### Bumping the cache version
+
+GitHub Pages serves files with a ten minute cache, which is long enough for a
+deploy to look like it never happened. The asset links in `index.html` and
+`admin.html` therefore carry a version marker:
+
+```html
+<script src="assets/core.js?v=6"></script>
+```
+
+**After changing anything in `assets/`, bump that number in both HTML files and
+in `CACHE` at the top of `sw.js`.** A new number is a new URL, so browsers
+cannot serve the old file.
+
+If a change still will not appear: hard-refresh with `Ctrl+Shift+R`
+(`Cmd+Shift+R` on a Mac). To clear the offline cache as well, open DevTools →
+Application → Service Workers → *Unregister*, then reload.
+
 ## Local development
 
 ```bash

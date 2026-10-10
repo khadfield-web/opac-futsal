@@ -2,7 +2,7 @@
    Network-first for the app shell so a deploy is never stuck behind
    a stale cache; cache is only a fallback for flaky school wifi.
    Live data is never cached — it always comes from the network. */
-const CACHE = 'opac-futsal-v1';
+const CACHE = 'opac-futsal-v6';
 const SHELL = [
   './',
   './index.html',
@@ -40,8 +40,15 @@ self.addEventListener('fetch', (e) => {
   /* Admin page is deliberately not cached — always fetch fresh. */
   if (url.pathname.endsWith('/admin.html')) return;
 
+  /* Go past the browser's own HTTP cache for our files. GitHub Pages serves
+     them with a ten minute max-age, which is long enough for a deploy to look
+     like it never happened. */
+  const fresh = url.origin === self.location.origin
+    ? new Request(req.url, { cache: 'no-cache', credentials: 'same-origin', mode: req.mode === 'navigate' ? 'same-origin' : req.mode })
+    : req;
+
   e.respondWith(
-    fetch(req)
+    fetch(fresh)
       .then((res) => {
         if (res && res.ok && url.origin === self.location.origin) {
           const copy = res.clone();
