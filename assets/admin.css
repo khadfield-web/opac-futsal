@@ -254,3 +254,57 @@ body.is-dragging * { cursor: grabbing !important; }
   .fix-score { justify-content: center; }
   .row-2, .row-3 { grid-template-columns: 1fr; }
 }
+
+/* ---------- group picker (Setup) ---------- */
+/* The groups need to sit side by side for dragging to make sense, so this
+   card takes two columns — which on a three-column layout also fills the gap
+   next to the competition-type card rather than starting a bare new row. */
+.settings-card.wide-card { grid-column: 1 / -1; }
+@media (min-width: 700px) { .settings-card.wide-card { grid-column: span 2; } }
+.group-grid { display: grid; gap: var(--s3); grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.group-col {
+  border: 1px solid var(--border); border-radius: var(--r);
+  background: var(--surface-2); overflow: hidden; min-width: 0;
+}
+.group-col-head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s2);
+  padding: 7px 10px; background: var(--surface-3);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-display); font-size: 0.8rem; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-dim);
+}
+.group-col-head .n {
+  font-size: 0.72rem; background: var(--accent-dim); color: var(--accent);
+  border-radius: var(--r-pill); padding: 1px 8px; font-family: var(--font-body); font-weight: 600;
+}
+.group-col-head.thin { color: var(--red); }
+.group-col-head.thin .n { background: rgba(255, 82, 82, .15); color: var(--red); }
+
+.group-col-list { display: flex; flex-direction: column; gap: 5px; padding: 7px; min-height: 52px; }
+.group-col-list:empty::after {
+  content: 'Drag a team here'; display: block; text-align: center; padding: var(--s3) var(--s2);
+  border: 1px dashed var(--border); border-radius: var(--r-sm);
+  color: var(--text-muted); font-size: 0.78rem;
+}
+
+.group-chip {
+  display: flex; align-items: center; gap: 4px; min-width: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 4px 6px; transition: border-color .15s, box-shadow .15s;
+}
+.group-chip:hover { border-color: var(--accent); }
+.group-chip .drag-handle { padding: 4px; font-size: 0.95rem; }
+.group-chip .gname {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 0.88rem;
+}
+.group-chip select {
+  width: auto; min-width: 0; padding: 3px 4px; font-size: 0.78rem;
+  font-family: var(--font-display); text-transform: uppercase;
+  background: var(--surface-2); color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+.group-chip.dragging {
+  box-shadow: var(--shadow-lift); border-color: var(--accent);
+  transform: rotate(-1deg); opacity: .96;
+}

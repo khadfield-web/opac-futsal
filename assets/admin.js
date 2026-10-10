@@ -15,6 +15,7 @@
   var activeTab = 'setup';
   var expanded = {};            /* match id -> details open */
   var sortable = null;
+  var groupSortable = null;
 
   var theme = F.initTheme();
 
@@ -164,28 +165,14 @@
             '</select></div>' +
         '</div>' +
 
-        (usingGroups
-          ? '<div class="field" style="margin-top:var(--s3)"><span class="lbl">Group sizes</span>' +
-              '<div class="slot-toggles">' +
-                sizes.map(function (n, i) {
-                  return '<span class="slot-toggle" style="cursor:default' + (n < 2 ? ';color:var(--red);border-color:var(--red)' : '') + '">' +
-                    esc(F.groupLabel(i)) + ' — ' + n + ' team' + (n === 1 ? '' : 's') + '</span>';
-                }).join('') +
-              '</div>' +
-              (balanced
-                ? '<p class="hint">Each group plays its own round robin. ' +
-                  'Choose who goes in which group on the <strong>Teams</strong> tab.</p>'
-                : '<p class="hint" style="color:var(--orange)">These groups are uneven. ' +
-                  'Set each team\'s group on the <strong>Teams</strong> tab, or ' +
-                  '<button class="btn btn-secondary btn-sm" type="button" id="evenGroupsBtn" style="margin-top:6px">Split teams evenly</button></p>') +
-            '</div>'
-          : '') +
-
         '<div class="field" style="margin-top:var(--s4)">' +
           '<button class="btn btn-primary" type="button" id="genDrawBtn">⚡ Generate draw</button>' +
           '<p class="hint">Builds every fixture from the settings above. This replaces the current draw — scores are cleared.</p>' +
         '</div>' +
       '</div>' +
+
+      /* ---- who is in which group ---- */
+      (usingGroups ? groupPickerCard() : '') +
 
       /* ---- points ---- */
       '<div class="settings-card">' +
@@ -265,6 +252,90 @@
       '</div>' +
 
       '</div>';
+
+    initGroupSortable();
+  }
+
+  /* Who is in which group, right where the group count is set. Drag a team
+     across, or use its dropdown — both just set team.group. */
+  function groupPickerCard() {
+    var n = state.config.groupCount || 1;
+    var sizes = F.groupSizes(state);
+    var balanced = F.groupsBalanced(state);
+    var cols = '';
+
+    for (var g = 0; g < n; g++) {
+      var members = state.teams.filter(function (t) { return (t.group || 0) === g; });
+      cols +=
+        '<div class="group-col" data-group="' + g + '">' +
+          '<div class="group-col-head' + (sizes[g] < 2 ? ' thin' : '') + '">' +
+            '<span>' + esc(F.groupLabel(g)) + '</span>' +
+            '<span class="n">' + sizes[g] + '</span>' +
+          '</div>' +
+          '<div class="group-col-list" data-group="' + g + '">' +
+            members.map(function (t) {
+              return '<div class="group-chip" data-gtid="' + esc(t.id) + '">' +
+                '<button class="drag-handle" type="button" aria-label="Drag ' + esc(t.name) + ' to another group" title="Drag to another group">⠿</button>' +
+                '<span class="gname">' + (t.emoji ? esc(t.emoji) + ' ' : '') + esc(t.name) + '</span>' +
+                '<select data-gmove="' + esc(t.id) + '" aria-label="Group for ' + esc(t.name) + '">' +
+                  Array.from({ length: n }, function (_, gi) {
+                    return '<option value="' + gi + '"' + (gi === g ? ' selected' : '') + '>' +
+                      esc(F.GROUP_NAMES[gi] || (gi + 1)) + '</option>';
+                  }).join('') +
+                '</select>' +
+              '</div>';
+            }).join('') +
+          '</div>' +
+        '</div>';
+    }
+
+    return '<div class="settings-card wide-card">' +
+      '<h3>Who is in which group</h3>' +
+      '<p class="cap">Drag a team across, or change the letter beside it. Each group plays its own round robin.</p>' +
+      '<div class="group-grid" id="groupPicker">' + cols + '</div>' +
+      (balanced
+        ? '<p class="hint" style="margin-top:var(--s3)">Groups are even. You can also edit names and logos on the <strong>Teams</strong> tab.</p>'
+        : '<p class="hint" style="margin-top:var(--s3);color:var(--orange)">These groups are uneven — every group needs at least two teams.</p>') +
+      '<div class="toolbar" style="margin:var(--s3) 0 0">' +
+        '<button class="btn btn-secondary btn-sm" type="button" id="evenGroupsBtn">⇄ Split evenly</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  /* Move a team into a group, landing at the dropped position so the
+     rearrangement sticks visually instead of snapping back to list order. */
+  function moveTeamToGroup(id, group, idx) {
+    var teams = state.teams;
+    var from = -1;
+    for (var i = 0; i < teams.length; i++) if (teams[i].id === id) { from = i; break; }
+    if (from < 0) return;
+    var team = teams.splice(from, 1)[0];
+    team.group = group;
+
+    var members = [];
+    teams.forEach(function (t, j) { if ((t.group || 0) === group) members.push(j); });
+    var at;
+    if (!members.length) at = teams.length;
+    else if (idx >= members.length) at = members[members.length - 1] + 1;
+    else at = members[idx];
+    teams.splice(at, 0, team);
+  }
+
+  function initGroupSortable() {
+    if (groupSortable) { groupSortable.destroy(); groupSortable = null; }
+    var host = $('#groupPicker');
+    if (!host) return;
+    groupSortable = window.makeSortable({
+      root: host,
+      list: '.group-col-list',
+      item: '.group-chip',
+      handle: '.drag-handle',
+      onDrop: function (d) {
+        var id = d.item.dataset.gtid;
+        var to = parseInt(d.toList.dataset.group, 10) || 0;
+        commit(function () { moveTeamToGroup(id, to, d.toIndex); }, { rerender: true });
+      }
+    });
   }
 
   function stat(v, k) {
@@ -894,6 +965,12 @@
 
       if (t.dataset.cfgBool) {
         commit(function () { state.config[t.dataset.cfgBool] = t.checked; }, { rerender: true });
+        return;
+      }
+
+      if (t.dataset.gmove) {
+        var gid = t.dataset.gmove, gTo = parseInt(t.value, 10) || 0;
+        commit(function () { moveTeamToGroup(gid, gTo, 1e9); }, { rerender: true });
         return;
       }
 

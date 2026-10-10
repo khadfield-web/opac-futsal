@@ -67,8 +67,8 @@ should still load in a private window with no login.
 
 | Tab | What it does |
 | --- | --- |
-| **Setup** | Competition type, points, tie-breakers, finals format, scheduling |
-| **Teams** | Names, emoji or logo, groups, order |
+| **Setup** | Competition type, who is in which group, points, tie-breakers, finals format, scheduling |
+| **Teams** | Names, emoji or logo, group, order |
 | **Fixtures** | The draw. Drag games around, enter scores |
 | **Ladder** | Read-only view of the calculated standings |
 | **Finals** | Scores for the finals series; match-ups fill themselves in |
@@ -101,6 +101,13 @@ one. There is also a *Move to week* dropdown behind the **⋯** button.
 
 **Format** — round robin (everyone plays everyone), groups (pools then finals),
 knockout only, or custom (you build the draw by hand).
+
+**Groups** — turning on the *Groups* format splits the teams evenly and adds a
+**Who is in which group** panel to Setup. Drag a team from one group to the
+other, or change the letter beside its name. The same control sits on each team
+card under **Teams**. *Split evenly* is a reset that reassigns by list order, so
+it undoes a hand-picked arrangement; nothing else touches your groups except
+changing how many there are.
 
 **Game slots** — every game sits in one of three fixed windows: **Recess**,
 **Lunch 1**, **Lunch 2**. Tick the ones you use under *Setup → Scheduling* and
@@ -210,7 +217,7 @@ deploy to look like it never happened. The asset links in `index.html` and
 `admin.html` therefore carry a version marker:
 
 ```html
-<script src="assets/core.js?v=7"></script>
+<script src="assets/core.js?v=8"></script>
 ```
 
 **After changing anything in `assets/`, bump that number in both HTML files and
