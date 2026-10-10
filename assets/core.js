@@ -309,7 +309,7 @@
         name: t.name || ('Team ' + (i + 1)),
         emoji: t.emoji || '',
         logo: t.logo || '',
-        group: Math.max(0, parseInt(t.group, 10) || 0),
+        group: Math.min(Math.max(1, st.config.groupCount || 1) - 1, Math.max(0, parseInt(t.group, 10) || 0)),
         colour: t.colour || ''
       };
     });
@@ -355,6 +355,42 @@
     });
     return st;
   }
+
+  /* ---------------------------------------------------------
+     groups
+     --------------------------------------------------------- */
+  /* Split the team list into even, contiguous blocks: with 10 teams and
+     2 groups the first five are A and the last five are B. */
+  function assignGroups(state) {
+    var n = Math.max(1, state.config.groupCount || 1);
+    var total = state.teams.length;
+    state.teams.forEach(function (t, i) {
+      t.group = n === 1 ? 0 : Math.min(n - 1, Math.floor(i * n / total));
+    });
+    return state;
+  }
+
+  function groupSizes(state) {
+    var n = Math.max(1, state.config.groupCount || 1);
+    var out = [];
+    for (var g = 0; g < n; g++) out.push(0);
+    state.teams.forEach(function (t) {
+      var g = Math.min(n - 1, Math.max(0, t.group || 0));
+      out[g]++;
+    });
+    return out;
+  }
+
+  /* True when every group has at least two teams and the sizes differ
+     by no more than one. */
+  function groupsBalanced(state) {
+    var sizes = groupSizes(state);
+    if (sizes.length < 2) return true;
+    var min = Math.min.apply(null, sizes), max = Math.max.apply(null, sizes);
+    return min >= 2 && (max - min) <= 1;
+  }
+
+  function groupLabel(i) { return 'Group ' + (GROUP_NAMES[i] || (i + 1)); }
 
   /* ---------------------------------------------------------
      lookups & match state
@@ -516,7 +552,7 @@
     if (n <= 1) return [{ name: '', index: 0, rows: standings(state) }];
     var out = [];
     for (var g = 0; g < n; g++) {
-      out.push({ name: 'Group ' + (GROUP_NAMES[g] || (g + 1)), index: g, rows: standings(state, { group: g }) });
+      out.push({ name: groupLabel(g), index: g, rows: standings(state, { group: g }) });
     }
     return out;
   }
@@ -650,8 +686,9 @@
     var teams = state.teams;
     if (teams.length < 2) return [];
 
+    var useGroups = cfg.format === 'groups' && cfg.groupCount > 1;
     var perGroup = [];
-    if (cfg.format === 'groups' && cfg.groupCount > 1) {
+    if (useGroups) {
       for (var g = 0; g < cfg.groupCount; g++) {
         perGroup.push(teams.filter(function (t) { return t.group === g; }).map(function (t) { return t.id; }));
       }
@@ -659,9 +696,10 @@
       perGroup.push(teams.map(function (t) { return t.id; }));
     }
 
-    /* Build a flat list of pairings, round by round, interleaving groups
-       so each week has a spread of games. */
-    var flat = [];
+    /* Round by round, interleaving the groups so each week gets a spread.
+       Byes are dropped: with greedy packing a team simply has no game that
+       week, and an explicit bye row can still be added by hand. */
+    var games = [];
     var groupRounds = perGroup.map(function (ids) { return ids.length >= 2 ? roundRobinRounds(ids) : []; });
     var maxRounds = Math.max.apply(null, groupRounds.map(function (r) { return r.length; }).concat([0]));
     var repeats = Math.max(1, Math.min(4, parseInt(cfg.rounds, 10) || 1));
@@ -672,41 +710,58 @@
           var pairs = rounds[r];
           if (!pairs) return;
           pairs.forEach(function (p) {
+            if (p[0] === '__BYE__' || p[1] === '__BYE__') return;
             var h = p[0], a = p[1];
             if (rep % 2 === 1) { var t = h; h = a; a = t; }   /* reverse fixture */
-            flat.push([h, a]);
+            games.push([h, a]);
           });
         });
       }
     }
 
     var slots = cfg.slots && cfg.slots.length ? cfg.slots : SLOTS;
+    return packWeeks(games, slots, cfg);
+  }
+
+  /* Place each game in the earliest week that still has a free slot and
+     does not already involve either team, so nobody is ever down for two
+     games in the same week. */
+  function packWeeks(games, slots, cfg) {
     var per = slots.length;
-    var weeks = [], wn = 1, idx = 0;
-    while (idx < flat.length) {
-      var chunk = flat.slice(idx, idx + per);
-      idx += per;
-      var wk = {
-        id: uid('w'),
-        label: (cfg.weekLabel || 'Week') + ' ' + wn,
-        date: cfg.startDate ? addDays(cfg.startDate, (wn - 1) * 7) : '',
-        matches: []
-      };
-      chunk.forEach(function (p, i) {
-        if (p[0] === '__BYE__' || p[1] === '__BYE__') {
-          var byeTeam = p[0] === '__BYE__' ? p[1] : p[0];
-          var b = blankMatch(byeTeam, '', '');
-          b.type = 'bye';
-          wk.matches.push(b);
+    var weeks = [];
+
+    function weekAt(i) {
+      while (weeks.length <= i) {
+        var n = weeks.length;
+        weeks.push({
+          id: uid('w'),
+          label: (cfg.weekLabel || 'Week') + ' ' + (n + 1),
+          date: cfg.startDate ? addDays(cfg.startDate, n * 7) : '',
+          matches: [],
+          busy: {}
+        });
+      }
+      return weeks[i];
+    }
+
+    games.forEach(function (g) {
+      for (var i = 0; ; i++) {
+        var w = weekAt(i);
+        if (w.matches.length < per && !w.busy[g[0]] && !w.busy[g[1]]) {
+          var m = blankMatch(g[0], g[1], '');
+          m.venue = cfg.venue || '';
+          w.matches.push(m);
+          w.busy[g[0]] = true;
+          w.busy[g[1]] = true;
           return;
         }
-        var m = blankMatch(p[0], p[1], slots[i % slots.length] || '');
-        m.venue = cfg.venue || '';
-        wk.matches.push(m);
-      });
-      weeks.push(wk);
-      wn++;
-    }
+      }
+    });
+
+    weeks.forEach(function (w) {
+      w.matches.forEach(function (m, i) { m.slot = slots[i % slots.length] || ''; });
+      delete w.busy;
+    });
     return weeks;
   }
 
@@ -1038,6 +1093,7 @@
     bracketFor: bracketFor, resolveFinals: resolveFinals, champion: champion,
     qualifierCount: qualifierCount, finalResult: finalResult,
     generateFixtures: generateFixtures, roundRobinRounds: roundRobinRounds, addDays: addDays,
+    assignGroups: assignGroups, groupSizes: groupSizes, groupsBalanced: groupsBalanced, groupLabel: groupLabel,
     fmtDate: fmtDate, fmtTime: fmtTime, relTime: relTime,
     Store: Store, Auth: Auth,
     $: $, $$: $$, toast: toast, confetti: confetti, initTheme: initTheme,

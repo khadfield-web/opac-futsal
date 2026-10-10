@@ -326,15 +326,25 @@
 
     var cfg = state.config;
     var q = F.qualifierCount(state);
-    var groups = F.standingsByGroup(state);
+    var br = F.bracketFor(state);
+    var groups = F.standingsByGroup(state).filter(function (g) { return g.rows.length; });
+
+    /* Only mark a qualifying line inside each group when the finals actually
+       take the top n from each group. Otherwise it is one combined ladder. */
+    var perGroup = groups.length > 1 && br.requiresGroups ? Math.round(q / groups.length) : 0;
 
     var html = groups.map(function (g) {
-      return (g.name ? '<div class="section-head"><h2>' + esc(g.name) + '</h2><div class="rule"></div></div>' : '') +
-        ladderTable(g.rows, groups.length > 1 ? Math.ceil(q / groups.length) : q, cfg.showForm);
+      return (g.name ? '<div class="section-head"><h2>' + esc(g.name) + '</h2><div class="rule"></div>' +
+               '<span class="aside">' + g.rows.length + ' teams</span></div>' : '') +
+        ladderTable(g.rows, groups.length > 1 ? perGroup : q, cfg.showForm);
     }).join('');
 
     var legendBits = [];
-    if (q) legendBits.push('<span><i class="sw"></i> Top ' + q + ' qualify for finals</span>');
+    if (q && groups.length > 1 && perGroup) {
+      legendBits.push('<span><i class="sw"></i> Top ' + perGroup + ' from each group qualify for finals</span>');
+    } else if (q) {
+      legendBits.push('<span><i class="sw"></i> Top ' + q + ' qualify for finals</span>');
+    }
     legendBits.push('<span>' + cfg.pointsWin + ' pts win &middot; ' + cfg.pointsDraw + ' draw &middot; ' + cfg.pointsLoss + ' loss</span>');
     var tb = cfg.tiebreakers.map(function (k) { return F.TIEBREAKERS[k].label; }).join(' → ');
     legendBits.push('<span>Separated by: ' + esc(tb) + '</span>');
