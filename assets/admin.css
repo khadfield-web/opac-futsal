@@ -87,6 +87,11 @@
 .team-edit-top img.prev { width: 26px; height: 26px; border-radius: 4px; object-fit: contain; }
 .team-edit-sub { display: grid; grid-template-columns: 70px 1fr; gap: var(--s2); align-items: center; }
 .team-edit-sub .lbl { margin: 0; }
+.team-edit-sub.group-row select {
+  font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.05em;
+  font-size: 0.82rem; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--accent-dim);
+}
 .team-edit-actions { display: flex; gap: 4px; justify-content: flex-end; }
 
 /* ---------- fixtures editor ---------- */

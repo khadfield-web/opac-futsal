@@ -173,8 +173,10 @@
                 }).join('') +
               '</div>' +
               (balanced
-                ? '<p class="hint">Each group plays its own round robin.</p>'
+                ? '<p class="hint">Each group plays its own round robin. ' +
+                  'Choose who goes in which group on the <strong>Teams</strong> tab.</p>'
                 : '<p class="hint" style="color:var(--orange)">These groups are uneven. ' +
+                  'Set each team\'s group on the <strong>Teams</strong> tab, or ' +
                   '<button class="btn btn-secondary btn-sm" type="button" id="evenGroupsBtn" style="margin-top:6px">Split teams evenly</button></p>') +
             '</div>'
           : '') +
@@ -326,14 +328,15 @@
         '<div class="num">' + (i + 1) + '</div>' + prev +
         '<input type="text" data-team="name" value="' + esc(t.name) + '" aria-label="Team name" placeholder="Team name">' +
       '</div>' +
+      (groups ? '<div class="team-edit-sub group-row"><span class="lbl">Group</span>' +
+        '<select data-team="group" aria-label="Group for ' + esc(t.name) + '">' +
+        Array.from({ length: state.config.groupCount }, function (_, g) {
+          return '<option value="' + g + '"' + (t.group === g ? ' selected' : '') + '>' + esc(F.groupLabel(g)) + '</option>';
+        }).join('') + '</select></div>' : '') +
       '<div class="team-edit-sub"><span class="lbl">Emoji</span>' +
         '<input type="text" data-team="emoji" value="' + esc(t.emoji) + '" maxlength="8" placeholder="🇧🇷" aria-label="Team emoji"></div>' +
       '<div class="team-edit-sub"><span class="lbl">Logo URL</span>' +
         '<input type="text" data-team="logo" value="' + esc(t.logo) + '" placeholder="https://…" aria-label="Team logo URL"></div>' +
-      (groups ? '<div class="team-edit-sub"><span class="lbl">Group</span><select data-team="group" aria-label="Group">' +
-        Array.from({ length: state.config.groupCount }, function (_, g) {
-          return '<option value="' + g + '"' + (t.group === g ? ' selected' : '') + '>' + esc(F.groupLabel(g)) + '</option>';
-        }).join('') + '</select></div>' : '') +
       '<div class="team-edit-actions">' +
         '<button class="btn btn-ghost btn-sm" type="button" data-team-move="up"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move up">▲</button>' +
         '<button class="btn btn-ghost btn-sm" type="button" data-team-move="down"' + (i === state.teams.length - 1 ? ' disabled' : '') + ' aria-label="Move down">▼</button>' +
@@ -384,7 +387,11 @@
         ? '<p class="note danger">These groups are uneven (' +
           sizes.map(function (x, i) { return esc(F.groupLabel(i)) + ': ' + x; }).join(', ') +
           '). Hit <strong>Split evenly</strong>, or set each team\'s group by hand below.</p>'
-        : '<p class="note">Rename a team at any time — every fixture, result and final follows the change automatically.</p>') +
+        : (grouped
+            ? '<p class="note accent">Use the <strong>Group</strong> dropdown on any team to move it between groups — ' +
+              'the ladder, the draw and the finals all follow. <strong>Split evenly</strong> only resets them to ' +
+              'the list order, so it will undo a hand-picked arrangement.</p>'
+            : '<p class="note">Rename a team at any time — every fixture, result and final follows the change automatically.</p>')) +
       body;
   }
 
@@ -834,6 +841,9 @@
       var seg = e.target.closest('[data-seg] button');
       if (seg) {
         var key = seg.closest('[data-seg]').dataset.seg;
+        /* Clicking the option that is already active would otherwise re-run
+           the even split and throw away a hand-picked arrangement. */
+        if (state.config[key] === seg.dataset.value) return;
         commit(function () {
           state.config[key] = seg.dataset.value;
           if (key === 'format') {

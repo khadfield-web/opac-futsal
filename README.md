@@ -210,7 +210,7 @@ deploy to look like it never happened. The asset links in `index.html` and
 `admin.html` therefore carry a version marker:
 
 ```html
-<script src="assets/core.js?v=6"></script>
+<script src="assets/core.js?v=7"></script>
 ```
 
 **After changing anything in `assets/`, bump that number in both HTML files and
