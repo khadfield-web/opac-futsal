@@ -389,6 +389,42 @@
   /* =========================================================
      TEAMS panel
      ========================================================= */
+  function isUploaded(v) { return typeof v === 'string' && v.indexOf('data:') === 0; }
+
+  /* Shrink a picked image to a crest-sized square and hand back a data URL.
+     It is stored in the competition document itself, so there is no file
+     hosting to arrange — but it also has to stay small, hence the resize. */
+  var LOGO_MAX_PX = 128;
+  var LOGO_WARN_BYTES = 60000;
+
+  function fileToLogo(file, done) {
+    if (!/^image\//.test(file.type)) return done(new Error('That file is not an image.'));
+    if (file.size > 8 * 1024 * 1024) return done(new Error('That image is very large — try one under 8MB.'));
+
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      var scale = Math.min(1, LOGO_MAX_PX / Math.max(img.width, img.height));
+      var w = Math.max(1, Math.round(img.width * scale));
+      var h = Math.max(1, Math.round(img.height * scale));
+      var cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+
+      var out;
+      try { out = cv.toDataURL('image/webp', 0.82); } catch (e) { out = ''; }
+      /* Browsers without WebP encoding quietly hand back a PNG instead. */
+      if (!out || out.indexOf('data:image/webp') !== 0) out = cv.toDataURL('image/png');
+      done(null, out);
+    };
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      done(new Error('That image could not be read.'));
+    };
+    img.src = url;
+  }
+
   function teamCard(t, i) {
     var groups = state.config.groupCount > 1;
     var prev = t.logo
@@ -406,8 +442,15 @@
         }).join('') + '</select></div>' : '') +
       '<div class="team-edit-sub"><span class="lbl">Emoji</span>' +
         '<input type="text" data-team="emoji" value="' + esc(t.emoji) + '" maxlength="8" placeholder="🇧🇷" aria-label="Team emoji"></div>' +
-      '<div class="team-edit-sub"><span class="lbl">Logo URL</span>' +
-        '<input type="text" data-team="logo" value="' + esc(t.logo) + '" placeholder="https://…" aria-label="Team logo URL"></div>' +
+      '<div class="team-edit-sub"><span class="lbl">Logo</span>' +
+        '<div class="logo-row">' +
+          '<label class="btn btn-ghost btn-sm" for="logo_' + esc(t.id) + '">⬆ Upload</label>' +
+          '<input type="file" id="logo_' + esc(t.id) + '" accept="image/*" data-team-file="' + esc(t.id) + '" hidden>' +
+          (isUploaded(t.logo)
+            ? '<span class="logo-tag">Uploaded image</span>'
+            : '<input type="text" data-team="logo" value="' + esc(t.logo) + '" placeholder="…or paste a URL" aria-label="Team logo URL">') +
+          (t.logo ? '<button class="btn btn-ghost btn-sm" type="button" data-team-logo-clear="1" aria-label="Remove logo">✕</button>' : '') +
+        '</div></div>' +
       '<div class="team-edit-actions">' +
         '<button class="btn btn-ghost btn-sm" type="button" data-team-move="up"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move up">▲</button>' +
         '<button class="btn btn-ghost btn-sm" type="button" data-team-move="down"' + (i === state.teams.length - 1 ? ' disabled' : '') + ' aria-label="Move down">▼</button>' +
@@ -1061,6 +1104,11 @@
       var id = card.dataset.tid;
       var idx = state.teams.findIndex(function (t) { return t.id === id; });
 
+      if (e.target.dataset.teamLogoClear) {
+        commit(function () { state.teams[idx].logo = ''; }, { rerender: true });
+        return;
+      }
+
       if (e.target.dataset.teamDel) {
         var t = state.teams[idx];
         var used = F.allMatches(state).some(function (en) { return en.match.home === id || en.match.away === id; });
@@ -1089,6 +1137,25 @@
             state.teams.length = n;
           }
         }, { rerender: true });
+        return;
+      }
+
+      if (t.dataset.teamFile) {
+        var file = t.files && t.files[0];
+        t.value = '';
+        if (!file) return;
+        var tid = t.dataset.teamFile;
+        fileToLogo(file, function (err, dataUrl) {
+          if (err) { F.toast(err.message, 'err'); return; }
+          if (dataUrl.length > LOGO_WARN_BYTES) {
+            F.toast('That logo is still ' + Math.round(dataUrl.length / 1024) + 'KB after resizing — a simpler image will load faster.', 'err');
+          }
+          commit(function () {
+            var team = state.teams.filter(function (x) { return x.id === tid; })[0];
+            if (team) team.logo = dataUrl;
+          }, { rerender: true });
+          F.toast('Logo added');
+        });
         return;
       }
 

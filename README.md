@@ -109,6 +109,13 @@ card under **Teams**. *Split evenly* is a reset that reassigns by list order, so
 it undoes a hand-picked arrangement; nothing else touches your groups except
 changing how many there are.
 
+**Team logos** — on the **Teams** tab each team has **⬆ Upload**. Pick any
+image and it is scaled down to 128px, converted to WebP and stored inside the
+competition document itself, so there is no file hosting to arrange. A typical
+crest ends up around 5–10KB. The URL box is still there if you would rather
+point at an image you host — including one committed to this repo, e.g.
+`assets/teams/brazil.png`, which keeps the database small.
+
 **Game slots** — every game sits in one of three fixed windows: **Recess**,
 **Lunch 1**, **Lunch 2**. Tick the ones you use under *Setup → Scheduling* and
 the draw puts one game in each, in that order, so three ticked slots means three
@@ -217,7 +224,7 @@ deploy to look like it never happened. The asset links in `index.html` and
 `admin.html` therefore carry a version marker:
 
 ```html
-<script src="assets/core.js?v=8"></script>
+<script src="assets/core.js?v=9"></script>
 ```
 
 **After changing anything in `assets/`, bump that number in both HTML files and

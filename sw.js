@@ -2,7 +2,7 @@
    Network-first for the app shell so a deploy is never stuck behind
    a stale cache; cache is only a fallback for flaky school wifi.
    Live data is never cached — it always comes from the network. */
-const CACHE = 'opac-futsal-v8';
+const CACHE = 'opac-futsal-v9';
 const SHELL = [
   './',
   './index.html',

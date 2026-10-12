@@ -93,6 +93,16 @@
   background: var(--accent-dim);
 }
 .team-edit-actions { display: flex; gap: 4px; justify-content: flex-end; }
+.logo-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.logo-row label.btn { cursor: pointer; flex-shrink: 0; white-space: nowrap; }
+.logo-row input[type='text'] { min-width: 0; font-size: 0.85rem; }
+.logo-tag {
+  flex: 1; min-width: 0; font-family: var(--font-display); font-size: 0.75rem;
+  text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent);
+  background: var(--accent-dim); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-radius: var(--r-sm); padding: 5px 9px; text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 /* ---------- fixtures editor ---------- */
 .week-card {
